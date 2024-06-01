@@ -1,0 +1,8 @@
+---
+- name: Configure gateway
+  hosts: gateway
+  become: yes
+  tasks:
+    - name: Provision complete
+      debug:
+        msg: "Gateway machine provisioned."
