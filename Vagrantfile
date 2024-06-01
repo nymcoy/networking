@@ -39,5 +39,6 @@ Vagrant.configure("2") do |config|
     remote.vm.provision "ansible" do |ansible|
       ansible.playbook = "ansible/remote.yml"
     end
+  end
 
 end

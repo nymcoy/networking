@@ -3,9 +3,10 @@
   hosts: remote
   become: yes
   tasks:
-    - name: Update apt cache
+    - name: Update and dist-upgrade apt packages
       apt:
         update_cache: yes
+        upgrade: dist
 
     - name: Install Nginx
       apt:

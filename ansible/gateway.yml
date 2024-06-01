@@ -3,6 +3,11 @@
   hosts: gateway
   become: yes
   tasks:
+    - name: Update and dist-upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
     - name: Provision complete
       debug:
         msg: "Gateway machine provisioned."

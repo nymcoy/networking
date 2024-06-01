@@ -3,6 +3,11 @@
   hosts: server
   become: yes
   tasks:
+    - name: Update and dist-upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
     - name: Delete existing default route
       command: ip route del default
       ignore_errors: yes
@@ -12,4 +17,4 @@
 
     - name: Provision complete
       debug:
-        msg: "Server machine provisioned and routing through Router."
+        msg: "Server machine provisioned."

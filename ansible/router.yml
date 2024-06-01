@@ -3,9 +3,10 @@
   hosts: router
   become: yes
   tasks:
-    - name: Update apt cache
+    - name: Update and dist-upgrade apt packages
       apt:
         update_cache: yes
+        upgrade: dist
 
     - name: Install iptables-persistent
       apt:
@@ -84,6 +85,7 @@
         jump: MASQUERADE
         state: present
 
+    # Save the current state of the firewall in a system file
     - name: Save current state of the firewall in system file
       community.general.iptables_state:
         state: saved
