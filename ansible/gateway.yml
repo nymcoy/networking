@@ -9,6 +9,7 @@
       apt:
         update_cache: yes
         upgrade: dist
+      when: false
 
     - name: Install StrongSwan
       apt:
@@ -19,26 +20,32 @@
       copy:
         content: |
           config setup
-            charondebug="ike 2, knl 2, cfg 2"
+            charondebug="cfg 4, dmn 4, ike 4, net 4"
+            # charondebug="ike 3, knl 1, cfg 3"
+            uniqueids=replace
 
-          conn %default
+          conn gateway-to-server
+            auto=add
+            compress=no
+            type=tunnel
             keyexchange=ikev2
-            authby=secret
-            ike=aes256-sha256-modp2048!
-            esp=aes256-sha256!
+            fragmentation=yes
+            forceencaps=yes
             dpdaction=clear
-            dpddelay=300s
-            rekey=no
-
-          conn vpn
-            left=%any
+            dpddelay=30s
+            dpdtimeout=180s
+            rekey=yes
+            authby=secret
+            ike=aes256gcm12-sha256-modp4096,aes128gcm12-sha256-modp4096!
+            esp=aes256gcm12-sha256,aes128gcm12-sha256!
+            left=192.168.20.2
             leftid=@gateway
             leftsubnet=0.0.0.0/0
+            leftsourceip=10.8.0.1
             right=%any
             rightid=@server
-            rightsourceip=10.0.0.0/24
-            rightdns=8.8.8.8
-            auto=add
+            rightsourceip=10.8.0.2/32
+            mobike=no
         dest: /etc/ipsec.conf
         owner: root
         group: root
@@ -47,7 +54,7 @@
     - name: Configure IPsec secrets
       copy:
         content: |
-          : PSK "{{ vpn_psk }}"
+          @gateway @server : PSK "{{ vpn_psk }}"
         dest: /etc/ipsec.secrets
         owner: root
         group: root
@@ -57,13 +64,50 @@
       systemd:
         name: strongswan
         enabled: yes
-        state: started
-
-    - name: Restart StrongSwan service
-      systemd:
-        name: strongswan
         state: restarted
+
+    - name: Enable IP forwarding
+      sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: yes
+        state: present
+        reload: yes
+
+    - name: Configure IPTables for NAT
+      iptables:
+        table: nat
+        chain: PREROUTING
+        protocol: tcp
+        destination_port: 80
+        jump: DNAT
+        to_destination: "10.8.0.2"
+      notify: Save IPTables
+
+    - name: Configure IPTables for masquerading
+      iptables:
+        table: nat
+        chain: POSTROUTING
+        jump: MASQUERADE
+      notify: Save IPTables
+
+    - name: Allow forwarding of HTTP traffic
+      iptables:
+        table: filter
+        chain: FORWARD
+        protocol: tcp
+        destination_port: 80
+        jump: ACCEPT
+      notify: Save IPTables
+
+    - meta: flush_handlers
 
     - name: Provision complete
       debug:
-        msg: "Gateway machine (StrongSwan VPN server) provisioned."
+        msg: "Gateway machine (StrongSwan VPN server and traffic forwarder) provisioned."
+  
+  handlers:
+    - name: Save IPTables
+      community.general.iptables_state:
+        state: saved
+        path: /etc/iptables/rules.v4

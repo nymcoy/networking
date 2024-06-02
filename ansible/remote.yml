@@ -1,5 +1,5 @@
 ---
-- name: Configure remote (Nginx web server)
+- name: Configure remote
   hosts: remote
   become: yes
   tasks:
@@ -8,17 +8,6 @@
         update_cache: yes
         upgrade: dist
 
-    - name: Install Nginx
-      apt:
-        name: nginx
-        state: present
-
-    - name: Start Nginx service
-      service:
-        name: nginx
-        state: started
-        enabled: yes
-
     - name: Provision complete
       debug:
-        msg: "Remote machine (Nginx web server) provisioned."
+        msg: "Remote machine provisioned."

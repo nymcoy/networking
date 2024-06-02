@@ -9,6 +9,7 @@
       apt:
         update_cache: yes
         upgrade: dist
+      when: false
 
     - name: Delete existing default route
       command: ip route del default
@@ -22,27 +23,63 @@
         name: strongswan
         state: present
 
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Create a simple HTML page
+      copy:
+        content: |
+          <html>
+          <head>
+              <title>Welcome to the Server</title>
+          </head>
+          <body>
+              <h1>Hello from the Server!</h1>
+          </body>
+          </html>
+        dest: /var/www/html/index.html
+        owner: www-data
+        group: www-data
+        mode: '0644'
+
+    - name: Start and enable Nginx
+      systemd:
+        name: nginx
+        enabled: yes
+        state: started
+
     - name: Configure StrongSwan with ipsec.conf
       copy:
         content: |
           config setup
-            charondebug="ike 2, knl 2, cfg 2"
+            # charondebug="ike 3, knl 1, cfg 3"
+            charondebug="cfg 4, dmn 4, ike 4, net 4"
+            uniqueids=replace
 
-          conn %default
+          conn gateway-to-server
+            auto=add
+            compress=no
+            type=tunnel
             keyexchange=ikev2
-            authby=secret
-            ike=aes256-sha256-modp2048!
-            esp=aes256-sha256!
+            fragmentation=yes
+            forceencaps=yes
             dpdaction=clear
-            dpddelay=300s
-            rekey=no
-
-          conn vpn
+            dpddelay=30s
+            dpdtimeout=180s
+            rekey=yes
+            authby=secret
+            ike=aes256gcm12-sha256-modp4096,aes128gcm12-sha256-modp4096!
+            esp=aes256gcm12-sha256,aes128gcm12-sha256!
             right=192.168.20.2
             rightid=@gateway
-            leftsourceip=%config
+            rightsubnet=192.168.20.0/24
+            # rightsourceip=%config
+            left=%any
             leftid=@server
-            auto=start
+            leftsourceip=%config
+            mobike=no
         dest: /etc/ipsec.conf
         owner: root
         group: root
@@ -51,23 +88,18 @@
     - name: Configure IPsec secrets
       copy:
         content: |
-          : PSK "{{ vpn_psk }}"
+          @server @gateway : PSK "{{ vpn_psk }}"
         dest: /etc/ipsec.secrets
         owner: root
         group: root
         mode: '0600'
 
-    - name: Enable and start StrongSwan
-      systemd:
-        name: strongswan
-        enabled: yes
-        state: started
-
     - name: Restart StrongSwan service
       systemd:
         name: strongswan
+        enabled: yes
         state: restarted
 
     - name: Provision complete
       debug:
-        msg: "Server machine (StrongSwan VPN client) provisioned."
+        msg: "Server machine (StrongSwan VPN client and Nginx web server) provisioned."
