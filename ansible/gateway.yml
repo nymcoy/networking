@@ -11,11 +11,13 @@
         upgrade: dist
       when: false
 
-    - name: Install StrongSwan
+    - name: Install StrongSwan and IPTables Persistent
       apt:
-        name: strongswan
+        name:
+          - strongswan
+          - iptables-persistent
         state: present
-
+        
     - name: Configure StrongSwan with ipsec.conf
       copy:
         content: |

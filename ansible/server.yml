@@ -59,13 +59,14 @@
             uniqueids=replace
 
           conn gateway-to-server
-            auto=add
+            auto=start
             compress=no
             type=tunnel
             keyexchange=ikev2
             fragmentation=yes
             forceencaps=yes
-            dpdaction=clear
+            closeaction=restart
+            dpdaction=restart
             dpddelay=30s
             dpdtimeout=180s
             rekey=yes
