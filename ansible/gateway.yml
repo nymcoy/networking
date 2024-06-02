@@ -2,12 +2,68 @@
 - name: Configure gateway
   hosts: gateway
   become: yes
+  vars_files:
+    - psk.yml
   tasks:
     - name: Update and dist-upgrade apt packages
       apt:
         update_cache: yes
         upgrade: dist
 
+    - name: Install StrongSwan
+      apt:
+        name: strongswan
+        state: present
+
+    - name: Configure StrongSwan with ipsec.conf
+      copy:
+        content: |
+          config setup
+            charondebug="ike 2, knl 2, cfg 2"
+
+          conn %default
+            keyexchange=ikev2
+            authby=secret
+            ike=aes256-sha256-modp2048!
+            esp=aes256-sha256!
+            dpdaction=clear
+            dpddelay=300s
+            rekey=no
+
+          conn vpn
+            left=%any
+            leftid=@gateway
+            leftsubnet=0.0.0.0/0
+            right=%any
+            rightid=@server
+            rightsourceip=10.0.0.0/24
+            rightdns=8.8.8.8
+            auto=add
+        dest: /etc/ipsec.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Configure IPsec secrets
+      copy:
+        content: |
+          : PSK "{{ vpn_psk }}"
+        dest: /etc/ipsec.secrets
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Enable and start StrongSwan
+      systemd:
+        name: strongswan
+        enabled: yes
+        state: started
+
+    - name: Restart StrongSwan service
+      systemd:
+        name: strongswan
+        state: restarted
+
     - name: Provision complete
       debug:
-        msg: "Gateway machine provisioned."
+        msg: "Gateway machine (StrongSwan VPN server) provisioned."

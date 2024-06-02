@@ -1,15 +1,5 @@
 Vagrant.configure("2") do |config|
 
-  # Define the Server machine
-  config.vm.define "server" do |server|
-    server.vm.box = "ubuntu/bionic64"
-    server.vm.network "private_network", ip: "192.168.10.2", virtualbox__intnet: "lan_net"
-    server.vm.hostname = "server"
-    server.vm.provision "ansible" do |ansible|
-      ansible.playbook = "ansible/server.yml"
-    end
-  end
-
   # Define the Router machine
   config.vm.define "router" do |router|
     router.vm.box = "ubuntu/bionic64"
@@ -28,8 +18,20 @@ Vagrant.configure("2") do |config|
     gateway.vm.hostname = "gateway"
     gateway.vm.provision "ansible" do |ansible|
       ansible.playbook = "ansible/gateway.yml"
+      ansible.vault_password_file = ".vault_pass.txt"
     end
   end
+
+  # Define the Server machine
+  config.vm.define "server" do |server|
+    server.vm.box = "ubuntu/bionic64"
+    server.vm.network "private_network", ip: "192.168.10.2", virtualbox__intnet: "lan_net"
+    server.vm.hostname = "server"
+    server.vm.provision "ansible" do |ansible|
+      ansible.playbook = "ansible/server.yml"
+      ansible.vault_password_file = ".vault_pass.txt"
+    end
+  end 
 
   # Define the Remote machine
   config.vm.define "remote" do |remote|

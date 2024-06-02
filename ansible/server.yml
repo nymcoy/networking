@@ -2,6 +2,8 @@
 - name: Configure server
   hosts: server
   become: yes
+  vars_files:
+    - psk.yml
   tasks:
     - name: Update and dist-upgrade apt packages
       apt:
@@ -15,6 +17,57 @@
     - name: Add default route to router
       command: ip route add default via 192.168.10.1
 
+    - name: Install StrongSwan
+      apt:
+        name: strongswan
+        state: present
+
+    - name: Configure StrongSwan with ipsec.conf
+      copy:
+        content: |
+          config setup
+            charondebug="ike 2, knl 2, cfg 2"
+
+          conn %default
+            keyexchange=ikev2
+            authby=secret
+            ike=aes256-sha256-modp2048!
+            esp=aes256-sha256!
+            dpdaction=clear
+            dpddelay=300s
+            rekey=no
+
+          conn vpn
+            right=192.168.20.2
+            rightid=@gateway
+            leftsourceip=%config
+            leftid=@server
+            auto=start
+        dest: /etc/ipsec.conf
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Configure IPsec secrets
+      copy:
+        content: |
+          : PSK "{{ vpn_psk }}"
+        dest: /etc/ipsec.secrets
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Enable and start StrongSwan
+      systemd:
+        name: strongswan
+        enabled: yes
+        state: started
+
+    - name: Restart StrongSwan service
+      systemd:
+        name: strongswan
+        state: restarted
+
     - name: Provision complete
       debug:
-        msg: "Server machine provisioned."
+        msg: "Server machine (StrongSwan VPN client) provisioned."
