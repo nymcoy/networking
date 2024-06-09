@@ -3,6 +3,7 @@
   apt:
     name:
       - strongswan
+      - iptables
       - iptables-persistent
     state: present
     
@@ -64,30 +65,91 @@
     state: present
     reload: yes
 
-- name: Configure IPTables for NAT
+- name: Flush all iptables rules
+  iptables:
+    table: "{{ item }}"
+    flush: yes
+  with_items:
+  - filter
+  - nat
+  notify: Save IPTables
+
+- name: Allow all loopback traffic
+  iptables:
+    chain: INPUT
+    in_interface: lo
+    jump: ACCEPT
+  notify: Save IPTables
+
+- name: Drop traffic to 127/8 that doesn't use lo0
+  iptables:
+    chain: INPUT
+    destination: 127.0.0.0/8
+    jump: REJECT
+  notify: Save IPTables
+
+- name: Allow established and related traffic on INPUT chain
+  iptables:
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  notify: Save IPTables
+
+- name: Allow established and related traffic on FORWARD chain
+  iptables:
+    chain: FORWARD
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+  notify: Save IPTables
+
+- name: Allow SSH
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 22
+    jump: ACCEPT
+
+- name: Allow forwarding of HTTP traffic on port 80
+  iptables:
+    chain: FORWARD
+    protocol: tcp
+    destination_port: 80
+    jump: ACCEPT
+  notify: Save IPTables
+
+- name: Add DNAT rule for HTTP traffic to internal server
   iptables:
     table: nat
     chain: PREROUTING
     protocol: tcp
     destination_port: 80
     jump: DNAT
-    to_destination: "10.8.0.2"
+    to_destination: 10.8.0.2
   notify: Save IPTables
 
-- name: Configure IPTables for masquerading
+- name: Add masquerade rule for all outgoing traffic
   iptables:
     table: nat
     chain: POSTROUTING
     jump: MASQUERADE
   notify: Save IPTables
 
-- name: Allow forwarding of HTTP traffic
+- name: Set default policy for INPUT chain to DROP
   iptables:
-    table: filter
+    chain: INPUT
+    policy: DROP
+  notify: Save IPTables
+
+- name: Set default policy for FORWARD chain to DROP
+  iptables:
     chain: FORWARD
-    protocol: tcp
-    destination_port: 80
-    jump: ACCEPT
+    policy: DROP
+  notify: Save IPTables
+
+- name: Set default policy for OUTPUT chain to ACCEPT
+  iptables:
+    chain: OUTPUT
+    policy: ACCEPT
   notify: Save IPTables
 
 - meta: flush_handlers

@@ -1,82 +1,105 @@
 ---
-- name: Install iptables-persistent
+- name: Install iptables and iptables-persistent
   apt:
-    name: iptables-persistent
+    name: 
+    - iptables
+    - iptables-persistent
     state: present
 
 - name: Enable IP forwarding
   sysctl:
     name: net.ipv4.ip_forward
     value: '1'
+    sysctl_set: yes
     state: present
     reload: yes
 
-# Forward traffic from LAN to WAN (192.168.20.0/24 subnet)
-- name: Add iptables rules for forwarding LAN to WAN (192.168.20.0/24)
+- name: Flush all iptables rules
   iptables:
-    table: filter
+    table: "{{ item }}"
+    flush: yes
+  with_items:
+  - filter
+  - nat
+
+- name: Allow all loopback traffic
+  iptables:
+    chain: INPUT
+    in_interface: lo
+    jump: ACCEPT
+
+- name: Drop traffic to 127/8 that doesn't use lo0
+  iptables:
+    chain: INPUT
+    destination: 127.0.0.0/8
+    jump: REJECT
+
+- name: Allow established and related traffic on INPUT chain
+  iptables:
+    chain: INPUT
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+
+- name: Allow established and related traffic on FORWARD chain
+  iptables:
     chain: FORWARD
-    in_interface: enp0s8  # LAN interface
-    out_interface: enp0s9  # Subnet 192.168.20.0/24
+    ctstate: ESTABLISHED,RELATED
+    jump: ACCEPT
+
+- name: Allow SSH
+  iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: 22
+    jump: ACCEPT
+
+- name: Allow internal network traffic from lan_net to wan_net
+  iptables:
+    chain: FORWARD
+    in_interface: enp0s8
+    out_interface: enp0s9
     source: 192.168.10.0/24
     destination: 192.168.20.0/24
     jump: ACCEPT
-    state: present
 
-# Forward established connections from WAN (192.168.20.0/24) to LAN
-- name: Add iptables rules for forwarding established connections (192.168.20.0/24)
-  iptables:
-    table: filter
-    chain: FORWARD
-    in_interface: enp0s9  # Subnet 192.168.20.0/24
-    out_interface: enp0s8  # LAN interface
-    match: state
-    ctstate: RELATED,ESTABLISHED
-    jump: ACCEPT
-    state: present
-
-# Forward traffic from LAN to general WAN (all other traffic)
 - name: Add iptables rules for forwarding LAN to general WAN
   iptables:
-    table: filter
     chain: FORWARD
-    in_interface: enp0s8  # LAN interface
-    out_interface: enp0s3  # General WAN interface
+    in_interface: enp0s8 
+    out_interface: enp0s3
     jump: ACCEPT
-    state: present
-
-# Forward established connections from general WAN to LAN
-- name: Add iptables rules for forwarding established connections from general WAN to LAN
-  iptables:
-    table: filter
-    chain: FORWARD
-    in_interface: enp0s3  # General WAN interface
-    out_interface: enp0s8  # LAN interface
-    match: state
-    ctstate: RELATED,ESTABLISHED
-    jump: ACCEPT
-    state: present
-
-# NAT rules for outbound traffic
-- name: Add iptables rule for NAT (192.168.20.0/24)
+    
+- name: Add masquerade rule for lan_net to wan_net
   iptables:
     table: nat
     chain: POSTROUTING
-    out_interface: enp0s9  # Subnet 192.168.20.0/24
+    out_interface: enp0s9
     source: 192.168.10.0/24
     destination: 192.168.20.0/24
     jump: MASQUERADE
-    state: present
 
-- name: Add iptables rule for NAT (general WAN)
+- name: Add masquerade rule for all outgoing traffic on enp0s3
   iptables:
     table: nat
     chain: POSTROUTING
-    out_interface: enp0s3  # General WAN interface
+    out_interface: enp0s3
     jump: MASQUERADE
-    state: present
 
-# Save the current state of the firewall in a system file
+- name: Set default policy for INPUT chain to DROP
+  iptables:
+    chain: INPUT
+    policy: DROP
+
+- name: Set default policy for FORWARD chain to DROP
+  iptables:
+    chain: FORWARD
+    policy: DROP
+
+- name: Set default policy for OUTPUT chain to ACCEPT
+  iptables:
+    chain: OUTPUT
+    policy: ACCEPT
+
 - name: Save current state of the firewall in system file
   community.general.iptables_state:
     state: saved

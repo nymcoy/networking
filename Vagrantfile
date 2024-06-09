@@ -32,6 +32,10 @@ Vagrant.configure("2") do |config|
   config.vm.provision "ansible" do |ansible|
     ansible.playbook = "ansible/playbook.yml"
     ansible.vault_password_file = ".vault_pass.txt"
+    ansible.groups = {
+      "routers" => ["router", "gateway"],
+      "vpn" => ["gateway", "server"]
+    }
   end
 
 end
