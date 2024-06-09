@@ -1,96 +1,84 @@
 ---
-- name: Configure router
-  hosts: router
-  become: yes
-  tasks:
-    - name: Update and dist-upgrade apt packages
-      apt:
-        update_cache: yes
-        upgrade: dist
+- name: Install iptables-persistent
+  apt:
+    name: iptables-persistent
+    state: present
 
-    - name: Install iptables-persistent
-      apt:
-        name: iptables-persistent
-        state: present
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    reload: yes
 
-    - name: Enable IP forwarding
-      sysctl:
-        name: net.ipv4.ip_forward
-        value: '1'
-        state: present
-        reload: yes
+# Forward traffic from LAN to WAN (192.168.20.0/24 subnet)
+- name: Add iptables rules for forwarding LAN to WAN (192.168.20.0/24)
+  iptables:
+    table: filter
+    chain: FORWARD
+    in_interface: enp0s8  # LAN interface
+    out_interface: enp0s9  # Subnet 192.168.20.0/24
+    source: 192.168.10.0/24
+    destination: 192.168.20.0/24
+    jump: ACCEPT
+    state: present
 
-    # Forward traffic from LAN to WAN (192.168.20.0/24 subnet)
-    - name: Add iptables rules for forwarding LAN to WAN (192.168.20.0/24)
-      iptables:
-        table: filter
-        chain: FORWARD
-        in_interface: enp0s8  # LAN interface
-        out_interface: enp0s9  # Subnet 192.168.20.0/24
-        source: 192.168.10.0/24
-        destination: 192.168.20.0/24
-        jump: ACCEPT
-        state: present
+# Forward established connections from WAN (192.168.20.0/24) to LAN
+- name: Add iptables rules for forwarding established connections (192.168.20.0/24)
+  iptables:
+    table: filter
+    chain: FORWARD
+    in_interface: enp0s9  # Subnet 192.168.20.0/24
+    out_interface: enp0s8  # LAN interface
+    match: state
+    ctstate: RELATED,ESTABLISHED
+    jump: ACCEPT
+    state: present
 
-    # Forward established connections from WAN (192.168.20.0/24) to LAN
-    - name: Add iptables rules for forwarding established connections (192.168.20.0/24)
-      iptables:
-        table: filter
-        chain: FORWARD
-        in_interface: enp0s9  # Subnet 192.168.20.0/24
-        out_interface: enp0s8  # LAN interface
-        match: state
-        ctstate: RELATED,ESTABLISHED
-        jump: ACCEPT
-        state: present
+# Forward traffic from LAN to general WAN (all other traffic)
+- name: Add iptables rules for forwarding LAN to general WAN
+  iptables:
+    table: filter
+    chain: FORWARD
+    in_interface: enp0s8  # LAN interface
+    out_interface: enp0s3  # General WAN interface
+    jump: ACCEPT
+    state: present
 
-    # Forward traffic from LAN to general WAN (all other traffic)
-    - name: Add iptables rules for forwarding LAN to general WAN
-      iptables:
-        table: filter
-        chain: FORWARD
-        in_interface: enp0s8  # LAN interface
-        out_interface: enp0s3  # General WAN interface
-        jump: ACCEPT
-        state: present
+# Forward established connections from general WAN to LAN
+- name: Add iptables rules for forwarding established connections from general WAN to LAN
+  iptables:
+    table: filter
+    chain: FORWARD
+    in_interface: enp0s3  # General WAN interface
+    out_interface: enp0s8  # LAN interface
+    match: state
+    ctstate: RELATED,ESTABLISHED
+    jump: ACCEPT
+    state: present
 
-    # Forward established connections from general WAN to LAN
-    - name: Add iptables rules for forwarding established connections from general WAN to LAN
-      iptables:
-        table: filter
-        chain: FORWARD
-        in_interface: enp0s3  # General WAN interface
-        out_interface: enp0s8  # LAN interface
-        match: state
-        ctstate: RELATED,ESTABLISHED
-        jump: ACCEPT
-        state: present
+# NAT rules for outbound traffic
+- name: Add iptables rule for NAT (192.168.20.0/24)
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: enp0s9  # Subnet 192.168.20.0/24
+    source: 192.168.10.0/24
+    destination: 192.168.20.0/24
+    jump: MASQUERADE
+    state: present
 
-    # NAT rules for outbound traffic
-    - name: Add iptables rule for NAT (192.168.20.0/24)
-      iptables:
-        table: nat
-        chain: POSTROUTING
-        out_interface: enp0s9  # Subnet 192.168.20.0/24
-        source: 192.168.10.0/24
-        destination: 192.168.20.0/24
-        jump: MASQUERADE
-        state: present
+- name: Add iptables rule for NAT (general WAN)
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: enp0s3  # General WAN interface
+    jump: MASQUERADE
+    state: present
 
-    - name: Add iptables rule for NAT (general WAN)
-      iptables:
-        table: nat
-        chain: POSTROUTING
-        out_interface: enp0s3  # General WAN interface
-        jump: MASQUERADE
-        state: present
+# Save the current state of the firewall in a system file
+- name: Save current state of the firewall in system file
+  community.general.iptables_state:
+    state: saved
+    path: /etc/iptables/rules.v4
 
-    # Save the current state of the firewall in a system file
-    - name: Save current state of the firewall in system file
-      community.general.iptables_state:
-        state: saved
-        path: /etc/iptables/rules.v4
-
-    - name: Provision complete
-      debug:
-        msg: "Router machine provisioned."
