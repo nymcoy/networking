@@ -89,3 +89,37 @@
     enabled: yes
     state: restarted
 
+- name: Deploy gateway check script
+  copy:
+    src: files/check_gateway.sh
+    dest: /usr/local/bin/check_gateway.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Set up cron job for gateway check
+  cron:
+    name: "Check IPsec connection status"
+    minute: "*/5"
+    job: "/usr/local/bin/check_gateway.sh"
+
+- name: Deploy logrotate configuration for gateway check log
+  copy:
+    content: |
+      /var/log/gateway_check.log {
+          daily
+          missingok
+          rotate 7
+          compress
+          delaycompress
+          notifempty
+          create 0640 root adm
+          sharedscripts
+          postrotate
+              /usr/bin/systemctl reload rsyslog > /dev/null 2>&1 || true
+          endscript
+      }
+    dest: /etc/logrotate.d/gateway_check
+    owner: root
+    group: root
+    mode: '0644'
