@@ -22,6 +22,15 @@
   - filter
   - nat
 
+- name: Set default policies
+  iptables:
+    chain: "{{ item.chain }}"
+    policy: "{{ item.policy }}"
+  with_items:
+  - { chain: INPUT, policy: ACCEPT }
+  - { chain: FORWARD, policy: ACCEPT }
+  - { chain: OUTPUT, policy: ACCEPT }
+
 - name: Allow all loopback traffic
   iptables:
     chain: INPUT
@@ -85,23 +94,8 @@
     out_interface: enp0s3
     jump: MASQUERADE
 
-- name: Set default policy for INPUT chain to DROP
-  iptables:
-    chain: INPUT
-    policy: DROP
-
-- name: Set default policy for FORWARD chain to DROP
-  iptables:
-    chain: FORWARD
-    policy: DROP
-
-- name: Set default policy for OUTPUT chain to ACCEPT
-  iptables:
-    chain: OUTPUT
-    policy: ACCEPT
 
 - name: Save current state of the firewall in system file
   community.general.iptables_state:
     state: saved
     path: /etc/iptables/rules.v4
-

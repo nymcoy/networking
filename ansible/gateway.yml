@@ -53,7 +53,7 @@
 
 - name: Enable and start StrongSwan
   systemd:
-    name: strongswan
+    name: strongswan-starter
     enabled: yes
     state: restarted
 
@@ -73,6 +73,15 @@
   - filter
   - nat
   notify: Save IPTables
+
+- name: Set default policies
+  iptables:
+    chain: "{{ item.chain }}"
+    policy: "{{ item.policy }}"
+  with_items:
+  - { chain: INPUT, policy: ACCEPT }
+  - { chain: FORWARD, policy: ACCEPT }
+  - { chain: OUTPUT, policy: ACCEPT }
 
 - name: Allow all loopback traffic
   iptables:
@@ -132,24 +141,6 @@
     table: nat
     chain: POSTROUTING
     jump: MASQUERADE
-  notify: Save IPTables
-
-- name: Set default policy for INPUT chain to DROP
-  iptables:
-    chain: INPUT
-    policy: DROP
-  notify: Save IPTables
-
-- name: Set default policy for FORWARD chain to DROP
-  iptables:
-    chain: FORWARD
-    policy: DROP
-  notify: Save IPTables
-
-- name: Set default policy for OUTPUT chain to ACCEPT
-  iptables:
-    chain: OUTPUT
-    policy: ACCEPT
   notify: Save IPTables
 
 - meta: flush_handlers

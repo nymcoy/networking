@@ -8,7 +8,7 @@
 
 - name: Install StrongSwan
   apt:
-    name: strongswan
+    name: strongswan-starter
     state: present
 
 - name: Install Nginx
@@ -85,7 +85,7 @@
 
 - name: Restart StrongSwan service
   systemd:
-    name: strongswan
+    name: strongswan-starter
     enabled: yes
     state: restarted
 
