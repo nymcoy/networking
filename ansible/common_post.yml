@@ -1,4 +1,0 @@
----
-- name: Provision complete
-  debug:
-    msg: "{{ inventory_hostname }} machine provisioned."

@@ -1,46 +1,46 @@
 ---
+- name: Update and dist-upgrade apt packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+  delegate_to: gateway
+
 - name: Install StrongSwan and IPTables Persistent
   apt:
     name:
+      - ntp
       - strongswan
       - iptables
       - iptables-persistent
     state: present
-    
-- name: Configure StrongSwan with ipsec.conf
+  delegate_to: gateway
+
+- name: Configure NTP
   copy:
     content: |
-      config setup
-        charondebug="cfg 4, dmn 4, ike 4, net 4"
-        # charondebug="ike 3, knl 1, cfg 3"
-        uniqueids=replace
-
-      conn gateway-to-server
-        auto=add
-        compress=no
-        type=tunnel
-        keyexchange=ikev2
-        fragmentation=yes
-        forceencaps=yes
-        dpdaction=clear
-        dpddelay=30s
-        dpdtimeout=180s
-        rekey=yes
-        authby=secret
-        ike=aes256gcm12-sha256-modp4096,aes128gcm12-sha256-modp4096!
-        esp=aes256gcm12-sha256,aes128gcm12-sha256!
-        left=192.168.20.2
-        leftid=@gateway
-        leftsubnet=0.0.0.0/0
-        leftsourceip=10.8.0.1
-        right=%any
-        rightid=@server
-        rightsourceip=10.8.0.2/32
-        mobike=no
+      driftfile /var/lib/ntp/ntp.drift
+      server 0.pool.ntp.org iburst
+      server 1.pool.ntp.org iburst
+      server 2.pool.ntp.org iburst
+      server 3.pool.ntp.org iburst
+    dest: /etc/ntp.conf
+  delegate_to: gateway
+  
+- name: Start and enable NTP service
+  service:
+    name: ntp
+    state: started
+    enabled: yes
+  delegate_to: gateway
+    
+- name: Configure StrongSwan with ipsec.conf
+  template:
+    src: ipsec.conf.gateway.j2
     dest: /etc/ipsec.conf
     owner: root
     group: root
     mode: '0644'
+  delegate_to: gateway
 
 - name: Configure IPsec secrets
   copy:
@@ -50,12 +50,14 @@
     owner: root
     group: root
     mode: '0600'
+  delegate_to: gateway
 
 - name: Enable and start StrongSwan
   systemd:
     name: strongswan-starter
     enabled: yes
     state: restarted
+  delegate_to: gateway
 
 - name: Enable IP forwarding
   sysctl:
@@ -64,6 +66,7 @@
     sysctl_set: yes
     state: present
     reload: yes
+  delegate_to: gateway
 
 - name: Flush all iptables rules
   iptables:
@@ -73,6 +76,7 @@
   - filter
   - nat
   notify: Save IPTables
+  delegate_to: gateway
 
 - name: Set default policies
   iptables:
@@ -82,6 +86,7 @@
   - { chain: INPUT, policy: ACCEPT }
   - { chain: FORWARD, policy: ACCEPT }
   - { chain: OUTPUT, policy: ACCEPT }
+  delegate_to: gateway
 
 - name: Allow all loopback traffic
   iptables:
@@ -89,6 +94,7 @@
     in_interface: lo
     jump: ACCEPT
   notify: Save IPTables
+  delegate_to: gateway
 
 - name: Drop traffic to 127/8 that doesn't use lo0
   iptables:
@@ -96,6 +102,7 @@
     destination: 127.0.0.0/8
     jump: REJECT
   notify: Save IPTables
+  delegate_to: gateway
 
 - name: Allow established and related traffic on INPUT chain
   iptables:
@@ -103,6 +110,7 @@
     ctstate: ESTABLISHED,RELATED
     jump: ACCEPT
   notify: Save IPTables
+  delegate_to: gateway
 
 - name: Allow established and related traffic on FORWARD chain
   iptables:
@@ -110,6 +118,7 @@
     ctstate: ESTABLISHED,RELATED
     jump: ACCEPT
   notify: Save IPTables
+  delegate_to: gateway
 
 - name: Allow SSH
   iptables:
@@ -117,6 +126,7 @@
     protocol: tcp
     destination_port: 22
     jump: ACCEPT
+  delegate_to: gateway
 
 - name: Allow forwarding of HTTP traffic on port 80
   iptables:
@@ -125,6 +135,7 @@
     destination_port: 80
     jump: ACCEPT
   notify: Save IPTables
+  delegate_to: gateway
 
 - name: Add DNAT rule for HTTP traffic to internal server
   iptables:
@@ -135,6 +146,7 @@
     jump: DNAT
     to_destination: 10.8.0.2
   notify: Save IPTables
+  delegate_to: gateway
 
 - name: Add masquerade rule for all outgoing traffic
   iptables:
@@ -142,6 +154,7 @@
     chain: POSTROUTING
     jump: MASQUERADE
   notify: Save IPTables
+  delegate_to: gateway
 
 - meta: flush_handlers
 

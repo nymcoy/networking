@@ -1,0 +1,27 @@
+config setup
+  # charondebug="ike 3, knl 1, cfg 3"
+  charondebug="cfg 4, dmn 4, ike 4, net 4"
+  uniqueids=replace
+
+conn gateway-to-server
+  auto=start
+  compress=no
+  type=tunnel
+  keyexchange=ikev2
+  fragmentation=yes
+  forceencaps=yes
+  closeaction=restart
+  dpdaction=restart
+  dpddelay=30s
+  dpdtimeout=180s
+  rekey=yes
+  authby=secret
+  ike=aes256gcm12-sha256-modp4096,aes128gcm12-sha256-modp4096!
+  esp=aes256gcm12-sha256,aes128gcm12-sha256!
+  right={{ ec2_instance.instances[0].public_ip_address }}
+  rightid=@gateway
+  rightsubnet=0.0.0.0/0
+  left=%any
+  leftid=@server
+  leftsourceip=%config
+  mobike=no

@@ -1,0 +1,25 @@
+# EC2 Gateway Setup
+- name: Launch EC2 instance
+  ec2_instance:
+    name: gateway
+    state: started
+    aws_access_key: "{{ aws_access_key }}"
+    aws_secret_key: "{{ aws_secret_key }}"
+    key_name: aws
+    region: us-east-1
+    instance_type: t4g.nano
+    image_id: ami-0789039e34e739d67
+    security_group: WideOpen
+    network_interfaces:
+      - assign_public_ip: true
+    wait: yes
+  register: ec2_instance
+  delegate_to: localhost
+
+- name: Add new EC2 instance to inventory
+  add_host:
+    name: "gateway"
+    ansible_host: "{{ ec2_instance.instances[0].public_ip_address }}"
+    ansible_ssh_private_key_file: "~/.ssh/aws.pem"
+    ansible_user: "admin"  # Replace with the appropriate user for your AMI
+  delegate_to: localhost

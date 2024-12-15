@@ -1,19 +1,25 @@
 ---
-- name: Delete existing default route
-  command: ip route del default
-  ignore_errors: yes
+# Drop Strongswan connection if it exists
+- name: Check if Strongswan connection exists
+  shell: ipsec statusall | grep -q 'gateway-to-server'
+  register: strongswan_connection_exists
+  ignore_errors: true
 
-- name: Add default route to router
-  command: ip route add default via 192.168.10.1
+- name: Drop Strongswan connection if it exists
+  shell: ipsec down rw-psk
+  when: strongswan_connection_exists.rc == 0
+  ignore_errors: true
 
-- name: Install StrongSwan
+- name: Update and dist-upgrade apt packages
   apt:
-    name: strongswan-starter
-    state: present
+    update_cache: yes
+    upgrade: dist
 
-- name: Install Nginx
+- name: Install packages
   apt:
-    name: nginx
+    name: 
+      - nginx
+      - strongswan
     state: present
 
 - name: Create a simple HTML page
@@ -39,36 +45,8 @@
     state: started
 
 - name: Configure StrongSwan with ipsec.conf
-  copy:
-    content: |
-      config setup
-        # charondebug="ike 3, knl 1, cfg 3"
-        charondebug="cfg 4, dmn 4, ike 4, net 4"
-        uniqueids=replace
-
-      conn gateway-to-server
-        auto=start
-        compress=no
-        type=tunnel
-        keyexchange=ikev2
-        fragmentation=yes
-        forceencaps=yes
-        closeaction=restart
-        dpdaction=restart
-        dpddelay=30s
-        dpdtimeout=180s
-        rekey=yes
-        authby=secret
-        ike=aes256gcm12-sha256-modp4096,aes128gcm12-sha256-modp4096!
-        esp=aes256gcm12-sha256,aes128gcm12-sha256!
-        right=192.168.20.2
-        rightid=@gateway
-        rightsubnet=192.168.20.0/24
-        # rightsourceip=%config
-        left=%any
-        leftid=@server
-        leftsourceip=%config
-        mobike=no
+  template:
+    src: ipsec.conf.server.j2
     dest: /etc/ipsec.conf
     owner: root
     group: root

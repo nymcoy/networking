@@ -2,38 +2,18 @@
 - name: Common configuration
   hosts: all
   become: yes
-  tasks:
-    - import_tasks: common_pre.yml
-
-- name: Router tasks
-  hosts: router
-  become: yes
-  tasks:
-   - import_tasks: router.yml
-
-- name: Gateway tasks
-  hosts: gateway
-  become: yes
+  collections:
+    - amazon.aws
+    - community.docker
   vars_files:
-    - psk.yml
+    - secrets.yml
   tasks:
+    - import_tasks: aws.yml
     - import_tasks: gateway.yml
+    - import_tasks: server.yml
   handlers:
     - name: Save IPTables
       community.general.iptables_state:
         state: saved
         path: /etc/iptables/rules.v4
-
-- name: Server tasks
-  hosts: server
-  become: yes
-  vars_files:
-    - psk.yml
-  tasks:
-    - import_tasks: server.yml
-
-- name: Common finishing-up
-  hosts: all
-  become: no
-  tasks:
-    - import_tasks: common_post.yml
+      delegate_to: gateway
