@@ -15,15 +15,54 @@
     update_cache: yes
     upgrade: dist
 
+- name: Check if a reboot is required
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Reboot the server if required
+  reboot:
+    reboot_timeout: 600
+  when: reboot_required.stat.exists
+
 - name: Install packages
   apt:
     name: 
-      - nginx
+      - curl
+      - docker.io
       - strongswan
     state: present
 
-- name: Create a simple HTML page
-  copy:
+- name: Stop Nginx service if running
+  systemd:
+    name: nginx
+    state: stopped
+  ignore_errors: true
+
+- name: Ensure Docker service is running
+  systemd:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Pull nginx Docker image
+  docker_image:
+    name: nginx
+    source: pull
+
+- name: Run nginx container with Hello World page
+  docker_container:
+    name: hello-nginx
+    image: nginx
+    ports:
+      - "80:80"
+    state: started
+    restart_policy: always
+
+- name: Create a Hello World index.html
+  docker_container_copy_into:
+    container: hello-nginx
+    container_path: /usr/share/nginx/html/index.html
     content: |
       <html>
       <head>
@@ -33,16 +72,17 @@
           <h1>Hello from the Server!</h1>
       </body>
       </html>
-    dest: /var/www/html/index.html
-    owner: www-data
-    group: www-data
-    mode: '0644'
+    mode: 644
 
-- name: Start and enable Nginx
-  systemd:
-    name: nginx
-    enabled: yes
+- name: Run nginx container with Hello World page
+  docker_container:
+    name: hello-nginx
+    image: nginx
+    ports:
+      - "80:80"
     state: started
+    restart_policy: always
+    restart: yes
 
 - name: Configure StrongSwan with ipsec.conf
   template:
@@ -66,6 +106,37 @@
     name: strongswan-starter
     enabled: yes
     state: restarted
+
+# - name: Add IPTables rules to forward traffic from IPsec to Docker
+#   iptables:
+#     chain: FORWARD
+#     in_interface: ipsec0
+#     out_interface: docker0
+#     jump: ACCEPT
+
+# - name: Add IPTables rules to forward traffic from Docker to IPsec
+#   iptables:
+#     chain: FORWARD
+#     in_interface: docker0
+#     out_interface: ipsec0
+#     jump: ACCEPT
+
+# - name: Add DNAT rule for HTTP traffic to Docker container
+#   iptables:
+#     table: nat
+#     chain: PREROUTING
+#     in_interface: ipsec0
+#     protocol: tcp
+#     destination_port: 80
+#     jump: DNAT
+#     to_destination: 172.17.0.2:80
+
+# - name: Add masquerade rule for all outgoing traffic from Docker
+#   iptables:
+#     table: nat
+#     chain: POSTROUTING
+#     out_interface: docker0
+#     jump: MASQUERADE
 
 - name: Deploy gateway check script
   copy:
