@@ -1,7 +1,14 @@
 config setup
-  # charondebug="ike 3, knl 1, cfg 3"
-  charondebug="cfg 4, dmn 4, ike 4, net 4"
+  charondebug="ike 3, knl 1, cfg 3"
+  # charondebug="cfg 4, dmn 4, ike 4, net 4"
   uniqueids=replace
+
+conn local-bypass
+    leftsubnet=127.0.0.1/32,192.168.50.0/24,172.17.0.0/16 #docker
+    rightsubnet=127.0.0.1/32,192.168.50.0/24,172.17.0.0/16 #docker
+    authby=never
+    type=pass
+    auto=route
 
 conn gateway-to-server
   auto=start
@@ -24,5 +31,4 @@ conn gateway-to-server
   left=%any
   leftid=@server
   leftsourceip=%config
-  leftsubnet=172.17.0.1/16 #docker
   mobike=no

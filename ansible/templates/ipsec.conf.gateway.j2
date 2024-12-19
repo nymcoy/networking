@@ -1,6 +1,6 @@
 config setup
-  charondebug="cfg 4, dmn 4, ike 4, net 4"
-  # charondebug="ike 3, knl 1, cfg 3"
+  charondebug="ike 3, knl 1, cfg 3"
+  # charondebug="cfg 4, dmn 4, ike 4, net 4"
   uniqueids=replace
 
 conn gateway-to-server
@@ -24,5 +24,4 @@ conn gateway-to-server
   right=%any
   rightid=@server
   rightsourceip=10.8.0.2/32
-  rightsubnet=10.8.0.0/24
   mobike=no
