@@ -84,6 +84,35 @@
     restart_policy: always
     restart: yes
 
+- name: Create virtual network interface vpn0
+  command: ip tuntap add dev vpn0 mode tun
+  ignore_errors: true
+
+- name: Bring up the virtual network interface vpn0
+  command: ip link set dev vpn0 up
+  ignore_errors: true
+
+- name: Assign IP address to vpn0
+  command: ip addr add 10.8.0.2/24 dev vpn0
+  ignore_errors: true
+
+- name: Enable IP forwarding
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+- name: Configure NAT for vpn0
+  iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: eth0
+    source: 10.8.0.0/24
+    jump: MASQUERADE
+  notify: Save IPTables Server
+
 - name: Configure StrongSwan with ipsec.conf
   template:
     src: ipsec.conf.server.j2
@@ -107,68 +136,37 @@
     enabled: yes
     state: restarted
 
-# - name: Add IPTables rules to forward traffic from IPsec to Docker
-#   iptables:
-#     chain: FORWARD
-#     in_interface: ipsec0
-#     out_interface: docker0
-#     jump: ACCEPT
+# - name: Deploy gateway check script
+#   copy:
+#     src: files/check_gateway.sh
+#     dest: /usr/local/bin/check_gateway.sh
+#     owner: root
+#     group: root
+#     mode: '0755'
 
-# - name: Add IPTables rules to forward traffic from Docker to IPsec
-#   iptables:
-#     chain: FORWARD
-#     in_interface: docker0
-#     out_interface: ipsec0
-#     jump: ACCEPT
+# - name: Set up cron job for gateway check
+#   cron:
+#     name: "Check IPsec connection status"
+#     minute: "*/5"
+#     job: "/usr/local/bin/check_gateway.sh"
 
-# - name: Add DNAT rule for HTTP traffic to Docker container
-#   iptables:
-#     table: nat
-#     chain: PREROUTING
-#     in_interface: ipsec0
-#     protocol: tcp
-#     destination_port: 80
-#     jump: DNAT
-#     to_destination: 172.17.0.2:80
-
-# - name: Add masquerade rule for all outgoing traffic from Docker
-#   iptables:
-#     table: nat
-#     chain: POSTROUTING
-#     out_interface: docker0
-#     jump: MASQUERADE
-
-- name: Deploy gateway check script
-  copy:
-    src: files/check_gateway.sh
-    dest: /usr/local/bin/check_gateway.sh
-    owner: root
-    group: root
-    mode: '0755'
-
-- name: Set up cron job for gateway check
-  cron:
-    name: "Check IPsec connection status"
-    minute: "*/5"
-    job: "/usr/local/bin/check_gateway.sh"
-
-- name: Deploy logrotate configuration for gateway check log
-  copy:
-    content: |
-      /var/log/gateway_check.log {
-          daily
-          missingok
-          rotate 7
-          compress
-          delaycompress
-          notifempty
-          create 0640 root adm
-          sharedscripts
-          postrotate
-              /usr/bin/systemctl reload rsyslog > /dev/null 2>&1 || true
-          endscript
-      }
-    dest: /etc/logrotate.d/gateway_check
-    owner: root
-    group: root
-    mode: '0644'
+# - name: Deploy logrotate configuration for gateway check log
+#   copy:
+#     content: |
+#       /var/log/gateway_check.log {
+#           daily
+#           missingok
+#           rotate 7
+#           compress
+#           delaycompress
+#           notifempty
+#           create 0640 root adm
+#           sharedscripts
+#           postrotate
+#               /usr/bin/systemctl reload rsyslog > /dev/null 2>&1 || true
+#           endscript
+#       }
+#     dest: /etc/logrotate.d/gateway_check
+#     owner: root
+#     group: root
+#     mode: '0644'
