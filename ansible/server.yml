@@ -1,5 +1,5 @@
 ---
-# Drop Strongswan connection if it exists
+# Stop anything that might interfere
 - name: Check if Strongswan connection exists
   shell: ipsec statusall | grep -q 'gateway-to-server'
   register: strongswan_connection_exists
@@ -10,6 +10,13 @@
   when: strongswan_connection_exists.rc == 0
   ignore_errors: true
 
+- name: Stop Nginx service if running
+  systemd:
+    name: nginx
+    state: stopped
+  ignore_errors: true
+
+# Make sure the server is up to date
 - name: Update and dist-upgrade apt packages
   apt:
     update_cache: yes
@@ -25,26 +32,45 @@
     reboot_timeout: 600
   when: reboot_required.stat.exists
 
+# Install required packages
 - name: Install packages
   apt:
     name: 
       - curl
       - docker.io
       - strongswan
+      - ntp
     state: present
 
-- name: Stop Nginx service if running
-  systemd:
-    name: nginx
-    state: stopped
-  ignore_errors: true
+# ntp setup
+- name: Configure NTP
+  copy:
+    content: |
+      driftfile /var/lib/ntp/ntp.drift
+      server 0.pool.ntp.org iburst
+      server 1.pool.ntp.org iburst
+      server 2.pool.ntp.org iburst
+      server 3.pool.ntp.org iburst
+    dest: /etc/ntp.conf
 
+- name: Start and enable NTP service
+  systemd:
+    name: ntp
+    state: started
+    enabled: yes
+
+- name: Set timezone to EST
+  timezone:
+    name: America/New_York
+
+# Docker setup
 - name: Ensure Docker service is running
   systemd:
     name: docker
     state: started
     enabled: yes
 
+## nginx container
 - name: Pull nginx Docker image
   docker_image:
     name: nginx
@@ -84,6 +110,7 @@
     restart_policy: always
     restart: yes
 
+# StrongSwan setup
 - name: Create virtual network interface vpn0
   command: ip tuntap add dev vpn0 mode tun
   ignore_errors: true
@@ -95,14 +122,6 @@
 - name: Assign IP address to vpn0
   command: ip addr add 10.8.0.2/24 dev vpn0
   ignore_errors: true
-
-- name: Enable IP forwarding
-  sysctl:
-    name: net.ipv4.ip_forward
-    value: '1'
-    sysctl_set: yes
-    state: present
-    reload: yes
 
 - name: Configure NAT for vpn0
   iptables:
