@@ -1,6 +1,8 @@
 .vagrant
 *.log
 psk.yml
+secrets.yml
 .vault_pass.txt
 *.tar
 *.old
+*.txt
