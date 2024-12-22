@@ -25,7 +25,7 @@ conn gateway-to-server
   authby=secret
   ike=aes256gcm12-sha256-modp4096,aes128gcm12-sha256-modp4096!
   esp=aes256gcm12-sha256,aes128gcm12-sha256!
-  right={{ ec2_instance.instances[0].public_ip_address }}
+  right={{ hostvars['gateway']['ansible_host'] }}
   rightid=@gateway
   rightsubnet=0.0.0.0/0
   left=10.8.0.2
