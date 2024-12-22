@@ -13,6 +13,7 @@
     network_interfaces:
       - assign_public_ip: true
     wait: yes
+    subnet_id: "{{ aws_subnet_id }}"
   register: ec2_instance
   delegate_to: localhost
 
